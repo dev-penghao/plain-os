@@ -1,7 +1,9 @@
 ;	loader:1.将kernel加载到0x1080:0处
 ;	2.跳入保护模式
-;	2.开启内存分页
-;	4.跳入内核
+;	3.开启内存分页
+;	4.重新放置内核
+;	5.跳入内核
+[.bit16]
 start:
 	mov ax,cs
 	mov ds,ax	;ds=ax=0x1000
@@ -58,22 +60,91 @@ into_pro_mode:
 	mov cr0, eax
 
 	;进入保护模式
-	jmp dword 08h:setup_page_table
+	jmp dword 0x0008:into_page_mode
 
 ;从此开始系统将在保护模式下运行
+;页目录表位置:0x20000~0x21000
+;页表位置:0x21000~0x22000
 ;3.设置页目录表，开启内存分页模式
-setup_page_table:
+[.bit32]
+into_page_mode:
 	mov ax,10h
 	mov gs,ax
 	mov ah,0ch ; 0000: 黑底 1100: 红字
 	mov al,'A'
 	mov [gs:((80 * 0 + 39) * 2)],ax ;屏幕第0行, 第39列。
-	jmp $
+	;先清零要用到的内存区域
+	mov ax,0x0012
+	mov ds,ax
+	mov ebx,0x20000
+	mov ecx,0x800	;0x800*4=0x2000
+clear_mem:
+	mov dword [ds:bx],0
+	add bx,4
+	loop clear_mem
+	;清零完毕后只向页目录写第一个页目录项，因为之后的都用不到就不用设置
+	mov ebx,0x20000
+	mov dword [ds:bx],0x00021003	;指向第一个页表地址0x21000
+	;写页表，1024个页表项，每个页表项4个字节
+	mov bx,0x21000
+	mov eax,0
+	mov ecx,0x400
+set_page_table:
+	mov dword [ds:bx],eax+0x3
+	add eax,0x00001000
+	loop set_page_table
+	;页目录表和页表都已创建，下面先将页目录表的地址送给cr3，再将cr0的最高位置1真正开启分页模式
+	mov eax,0x00020000
+	mov cr3,eax
+	mov eax,cr0
+	or eax,1000_0000_0000_0000_0000_0000_0000_0000b
+	mov cr0,eax
+
+;4.重新放置内核
+reset_kernel:
+	
+;用于显示一个字符串，在ax中接收一个指向字符串的指针
+;disp_str:
+
+; void* mem_copy(void* es:pDest, void* ds:pSrc, int iSize);
+mem_copy:
+	push ebp
+	mov ebp, esp
+
+	push esi
+	push edi
+	push ecx
+
+	mov edi,[ebp+8]	; Destination
+	mov esi,[ebp+12]	; Source
+	mov ecx,[ebp+16]	; Counter
+.1:
+	cmp ecx,0	; 判断计数器
+	jz .2	; 计数器为零时跳出
+
+	mov al,[ds:esi]
+	inc esi
+	mov byte [es:edi],al
+	inc	edi
+
+	dec	ecx		; 计数器减一
+	jmp	.1		; 循环
+.2:
+	mov	eax, [ebp + 8]	; 返回值
+
+	pop	ecx
+	pop	edi
+	pop	esi
+	mov esp, ebp
+	pop	ebp
+
+	ret
 
 gdt:
 	dd 0,0	;NULL!
-	dd 0x0000ffff,0x00009a01 ;code seg=0x10000,lim=0xffff
-	dd 0x8000ffff,0x0000920b ;date seg=0xb800,lim=0xffff
+	dd 0x0000ffff,0x00009a01 ;code seg=0x10000,lim=0xffff sec=0x0008 loader代码段
+	dd 0x8000ffff,0x0000920b ;date seg=0xb800,lim=0xffff sec=0x0010 显存段
+	dd 0x0000ffff,0x00cf9200 ;date seg=0,lim=4GB sec=0x0012 全局数据段
 
 gdt_48: dw $-gdt-1	;gdt表描述符个数-1
 	dd gdt+0x10000	;32位gdt基地址
