@@ -1,20 +1,15 @@
 ;	loader:1.将kernel加载到0x1080:0处
 ;	2.跳入保护模式
 ;	3.开启内存分页
-;	4.重新放置内核
-;	5.跳入内核
-start:
-	mov ax,cs
-	mov ds,ax	;ds=ax=0x1000
+;	4.跳入内核。因为将内核编译成了纯二进制的，所以不用做一个elf加载器而可以直接跳入执行
 	;此时栈还是boot中用到的栈，seg=0x07c0,lim=1kb
-
 ;1.加载内核入内存
 load_kernel:
 	mov ax,0xb800
-	mov ds,ax
-	mov byte [ds:(80*1+0)*2],'G'
-	mov byte [ds:(80*1+1)*2],'o'
-	mov byte [ds:(80*1+2)*2],'!'
+	mov gs,ax
+	mov byte [gs:(80*1+0)*2],'G'
+	mov byte [gs:(80*1+1)*2],'o'
+	mov byte [gs:(80*1+2)*2],'!'
 	mov dx,0x0000
 	mov cx,0x0006
 	mov ax,KERSEG
@@ -24,22 +19,18 @@ load_kernel:
 	int 0x13
 	jnc into_pro_mode
 die:
-	mov ax,0xb800
-	mov ds,ax
-	mov byte [ds:0x00],'D'
-	mov byte [ds:0x02],'i'
-	mov byte [ds:0x04],'e'
-	mov byte [ds:0x06],'!'
+	mov byte [gs:0x00],'D'
+	mov byte [gs:0x02],'i'
+	mov byte [gs:0x04],'e'
+	mov byte [gs:0x06],'!'
 	cli
 	hlt	;中断已关，将不会再醒来
 
 ;2.完成加载内核入内存，我们开始进入保护模式
 into_pro_mode:
-	mov ax,0xb800
-	mov ds,ax
-	mov byte [ds:(80*2+0)*2],'O'
-	mov byte [ds:(80*2+1)*2],'K'
-	mov byte [ds:(80*2+2)*2],'!'
+	mov byte [gs:(80*2+0)*2],'O'
+	mov byte [gs:(80*2+1)*2],'K'
+	mov byte [gs:(80*2+2)*2],'!'
 
 	mov ax,0x1000
 	mov ds,ax
@@ -106,51 +97,12 @@ set_page_table:
 	mov word [ds:0],ax
 	jmp $
 
-;4.重新放置内核
-reset_kernel:
-	
-;用于显示一个字符串，在ax中接收一个指向字符串的指针
-;disp_str:
-
-; void* mem_copy(void* es:pDest, void* ds:pSrc, int iSize);
-mem_copy:
-	push ebp
-	mov ebp, esp
-
-	push esi
-	push edi
-	push ecx
-
-	mov edi,[ebp+8]	; Destination
-	mov esi,[ebp+12]	; Source
-	mov ecx,[ebp+16]	; Counter
-.1:
-	cmp ecx,0	; 判断计数器
-	jz .2	; 计数器为零时跳出
-
-	mov al,[ds:esi]
-	inc esi
-	mov byte [es:edi],al
-	inc	edi
-
-	dec	ecx		; 计数器减一
-	jmp	.1		; 循环
-.2:
-	mov	eax, [ebp + 8]	; 返回值
-
-	pop	ecx
-	pop	edi
-	pop	esi
-	mov esp, ebp
-	pop	ebp
-
-	ret
-
 gdt:
 	dd 0,0	;NULL!
 	dd 0x0000ffff,0x00009a01 ;code seg=0x10000,lim=0xffff sel=0x0008 loader代码段
 	dd 0x8000ffff,0x0000920b ;date seg=0xb800,lim=0xffff sel=0x0010 显存段
 	dd 0x0000ffff,0x00cf9200 ;date seg=0,lim=4GB sel=0x0018 全局数据段
+	dd 0x0000ffff,0x00cf9a00 ;code seg=0x10800,lim=1MB sel= 内核代码段
 
 gdt_48: dw $-gdt-1	;gdt表描述符个数-1
 	dd gdt+0x10000	;32位gdt基地址

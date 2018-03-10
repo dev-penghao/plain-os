@@ -1,6 +1,3 @@
-; 编译链接方法
-; $ nasm -f elf kernel.asm -o kernel.o
-; $ ld -s -Ttext 0x30400 kernel.o -o kernel.bin    #‘-s’选项意为“strip all”
 
 [section .text]	; 代码在此
 
