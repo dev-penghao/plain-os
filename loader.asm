@@ -94,18 +94,19 @@ set_page_table:
 	mov bx,0
 	mov ah,0x0c
 	mov al,'K'
-	mov word [ds:0],ax
-	jmp $
+	jmp 0x0020:0
 
 gdt:
 	dd 0,0	;NULL!
 	dd 0x0000ffff,0x00009a01 ;code seg=0x10000,lim=0xffff sel=0x0008 loader代码段
 	dd 0x8000ffff,0x0000920b ;date seg=0xb800,lim=0xffff sel=0x0010 显存段
 	dd 0x0000ffff,0x00cf9200 ;date seg=0,lim=4GB sel=0x0018 全局数据段
-	dd 0x0000ffff,0x00cf9a00 ;code seg=0x10800,lim=1MB sel= 内核代码段
+	dd 0x0800ffff,0x00cf9a01 ;code seg=0x10800,lim=1MB sel=0x0020 内核代码段
+	dd 0x00007a00,0x00409600 ;task seg=0,lim=7a00 sel=0x0028 栈段
 
 gdt_48: dw $-gdt-1	;gdt表描述符个数-1
 	dd gdt+0x10000	;32位gdt基地址
 
+BaseOfKernelFilePhyAddr equ 0x10800
 KERSEG equ 0x1080
 KERLEN equ 16
