@@ -1,6 +1,6 @@
 void myprint();
 
-int test(){
+int main(){
 	myprint();
 	return 0;
 }

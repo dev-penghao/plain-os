@@ -23,9 +23,7 @@ c:
 load_system:
 	mov ax,0xb800
 	mov ds,ax
-	mov byte [ds:0x00],'G'
-	mov byte [ds:0x02],'o'
-	mov byte [ds:0x04],'!'
+	mov byte [ds:0x00],'A'
 	mov dx,0x0000
 	mov cx,0x0002
 	mov ax,0x1000

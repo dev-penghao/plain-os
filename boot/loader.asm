@@ -7,9 +7,7 @@
 load_kernel:
 	mov ax,0xb800
 	mov gs,ax
-	mov byte [gs:(80*1+0)*2],'G'
-	mov byte [gs:(80*1+1)*2],'o'
-	mov byte [gs:(80*1+2)*2],'!'
+	mov byte [gs:0x02],'B'
 	mov dx,0x0000
 	mov cx,0x0006
 	mov ax,KERSEG
@@ -28,9 +26,7 @@ die:
 
 ;2.完成加载内核入内存，我们开始进入保护模式
 into_pro_mode:
-	mov byte [gs:(80*2+0)*2],'O'
-	mov byte [gs:(80*2+1)*2],'K'
-	mov byte [gs:(80*2+2)*2],'!'
+	mov byte [gs:0x04],'O'
 
 	mov ax,0x1000
 	mov ds,ax
@@ -61,7 +57,7 @@ into_page_mode:
 	mov gs,ax
 	mov ah,0ch ; 0000: 黑底 1100: 红字
 	mov al,'A'
-	mov [gs:((80 * 0 + 39) * 2)],ax ;屏幕第0行, 第39列。
+	mov [gs:0x06],ax ;屏幕第0行, 第39列。
 	;先清零要用到的内存区域
 	mov ax,0x0018
 	mov ds,ax
@@ -89,11 +85,8 @@ set_page_table:
 	mov eax,cr0
 	or eax,1000_0000_0000_0000_0000_0000_0000_0000b
 	mov cr0,eax
-	mov ax,0x0010
+	mov ax,0x0018
 	mov ds,ax
-	mov bx,0
-	mov ah,0x0c
-	mov al,'K'
 	jmp 0x0020:0
 
 gdt:
@@ -107,6 +100,5 @@ gdt:
 gdt_48: dw $-gdt-1	;gdt表描述符个数-1
 	dd gdt+0x10000	;32位gdt基地址
 
-BaseOfKernelFilePhyAddr equ 0x10800
 KERSEG equ 0x1080
 KERLEN equ 16
