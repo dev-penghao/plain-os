@@ -1,5 +1,5 @@
-;	boot.asm:将位于第二扇区长度为4个扇区的loader读入内存0x1000处
-;并跳到0x1000处执行。
+;	boot.asm:将位于第二扇区长度为4个扇区的loader读入内存0x10000处
+;并跳到0x10000处执行。
 
 start:
 	jmp 0x07c0:go
@@ -9,21 +9,7 @@ go:
 	mov ss,ax
 	mov sp,0x400
 
-;清屏，一些BIOS在运行之后会在屏幕上残留一些字符
-clear_screen:
-	mov ecx,80*24
-	mov ax,0xb800
-	mov ds,ax
-	xor bx,bx
-c:
-	mov word [ds:bx],0x0700	;以0填充会造成字符无法显示，0x07是属性，黑底白字
-	add bx,2
-	loop c
-
 load_system:
-	mov ax,0xb800
-	mov ds,ax
-	mov byte [ds:0x00],'A'
 	mov dx,0x0000
 	mov cx,0x0002
 	mov ax,0x1000

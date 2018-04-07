@@ -5,9 +5,6 @@
 	;此时栈还是boot中用到的栈，seg=0x07c0,lim=1kb
 ;1.加载内核入内存
 load_kernel:
-	mov ax,0xb800
-	mov gs,ax
-	mov byte [gs:0x02],'B'
 	mov dx,0x0000
 	mov cx,0x0006
 	mov ax,KERSEG
@@ -16,6 +13,7 @@ load_kernel:
 	mov ax,0x200 + KERLEN	  ;AH - read, AL = sectors
 	int 0x13
 	jnc into_pro_mode
+	;jnc open_vesa
 die:
 	mov byte [gs:0x00],'D'
 	mov byte [gs:0x02],'i'
@@ -24,10 +22,28 @@ die:
 	cli
 	hlt	;中断已关，将不会再醒来
 
+;显卡工作模式切换到320*200*8工作模式
+open_vga:
+	mov al,0x13
+	mov ah,0
+	int 0x10
+	jmp into_pro_mode
+
+;显卡工作模式设置为1024*768，8:8:8
+open_vesa:
+	mov ax,0x4f02
+	mov bx,0x4118
+	int 0x10
+	mov eax , 0x4F01 ;;表示使用 0x4F01 功能，以获得显示模式信息
+	mov ecx , 0x118 ;;表示欲获得0x118显示模式的信息
+	mov bx , 0x9000
+	mov es , bx
+	mov di , 0x00 ;;上面两句表示把信息放在es:di
+	int 0x10
+	mov eax,[es:40]	;把返回的显存的开始地址存放到eax中，但得到的地址是错的
+
 ;2.完成加载内核入内存，我们开始进入保护模式
 into_pro_mode:
-	mov byte [gs:0x04],'O'
-
 	mov ax,0x1000
 	mov ds,ax
 	lgdt [ds:gdt_48]
@@ -53,11 +69,6 @@ into_pro_mode:
 ;页表位置:0x21000~0x22000
 ;3.设置页目录表，开启内存分页模式
 into_page_mode:
-	mov ax,10h
-	mov gs,ax
-	mov ah,0ch ; 0000: 黑底 1100: 红字
-	mov al,'A'
-	mov [gs:0x06],ax ;屏幕第0行, 第39列。
 	;先清零要用到的内存区域
 	mov ax,0x0018
 	mov ds,ax
@@ -87,7 +98,10 @@ set_page_table:
 	mov cr0,eax
 	mov ax,0x0018
 	mov ds,ax
+	mov ax,0x0010
+	mov gs,ax
 	jmp 0x0020:0
+
 
 gdt:
 	dd 0,0	;NULL!
@@ -95,10 +109,10 @@ gdt:
 	dd 0x8000ffff,0x0000920b ;date seg=0xb800,lim=0xffff sel=0x0010 显存段
 	dd 0x0000ffff,0x00cf9200 ;date seg=0,lim=4GB sel=0x0018 全局数据段
 	dd 0x0800ffff,0x00cf9a01 ;code seg=0x10800,lim=1MB sel=0x0020 内核代码段
-	dd 0x00007a00,0x00409600 ;task seg=0,lim=7a00 sel=0x0028 栈段
 
 gdt_48: dw $-gdt-1	;gdt表描述符个数-1
 	dd gdt+0x10000	;32位gdt基地址
 
 KERSEG equ 0x1080
 KERLEN equ 16
+str1 db "Loading OK,we will jmp to kernel."
