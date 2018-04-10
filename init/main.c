@@ -5,10 +5,6 @@ short b(short s);
 
 void main(void) {
 	a();
-	for(;;) {
-		hlt();
-	}
-
 }
 
 int a()
