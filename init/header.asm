@@ -20,14 +20,27 @@ entry:
 	mov ss,ax
 	mov esp,0x7c00
 
+	
+
 	call set_idt
 
 	call main
+	mov ax,0x28
+	lldt ax
+	mov ax,0x30
+	ltr ax
+
+	push 0x1f
+	push task0_ss+0x10800
+	push 0x00
+	push 0x0f
+	push 6
+	iretd
 
 	;push dword text1
 	;call put_string
 
-	int 0x80
+	;int 0x80
 
 	jmp $
 
@@ -35,6 +48,17 @@ set_idt:
 	cli
 	lidt [ds:idt_48]
 	call init8259A
+
+	;把时钟设置成每10ms发送一个中断信号
+	mov al,0x36
+	mov edx,0x43
+	out dx,al
+	mov eax,11930
+	mov edx,0x40
+	out dx,al
+	mov al,ah
+	out dx,al
+
 	sti
 	ret
 
@@ -221,12 +245,37 @@ time equ _time-$$
 	out 0x20,al
 	iretd
 
+_task0:
+task0 equ _task0-$$
+	jmp $
+	add ax,1
+	mov ax,0x0f
+	mov gs,ax
+	mov ah,0x0c
+	mov al,'l'
+	mov [gs:4],ax
+	retf
+
+
+_tss0:
+tss0 equ _tss0-$$
+    dd 0
+    dd 0,0
+    dd 0,0,0,0,0           ; esp1, ssl1, esp2, ss2, cr3
+    dd 0,0,0,0,0           ; eip, eflags, eax, ecx, edx  
+    dd 0,0,0,0,0           ; ebx, esp, ebp, esi, edi
+    dd 0,0,0,0,0,0         ; es, cs, ss, ds, fs, gs
+    dd 0x28, 0x8000000
+
 gdt:
 	dd 0,0	;NULL!
 	Descriptor 0x00000, 0xfffff,DA_DRW|DA_32	;全局数据段,0x08
 	Descriptor 0x10800, 0x0ffff, DA_CR|DA_32	;内核代码段,0x10
 	Descriptor 0x00000, 0x07a00, DA_DRWL|DA_32	;内核栈段,0x18
 	Descriptor 0B8000h, 0x0ffff, DA_DRW|DA_DPL0	; 显存首地址,0x20
+	Descriptor _ldt+0x10800    , ldt_48-ldt,DA_LDT|DA_32|DA_DPL0
+	;Gate 0x10,task0,0,DA_386CGate|DA_DPL3
+	Descriptor tss0+0x10800, gdt-_tss0-1, DA_386TSS	;TSS描述符
 
 gdt_48:
 	dw $-gdt-1	;gdt表描述符个数-1
@@ -245,4 +294,17 @@ idt_48:
 	dw $-idt-1
 	dd idt
 
-text1: db "Eello world!",0
+ldt:
+_ldt equ ldt-$$
+	dd 0,0
+	Descriptor task0+0x10800, 0x0ffff, DA_CR|DA_32|DA_DPL3		;代码段
+	Descriptor 0B8000h, 0x0ffff, DA_DRW|DA_DPL3	;显存段
+	Descriptor 0x00000, task0_ss+0x10800-256, DA_DRWL|DA_32|DA_DPL3;任务0栈段
+
+ldt_48:
+	dw $-ldt-1
+	dd ldt
+
+	times 256 dd 0
+_task0_ss:
+task0_ss equ _task0_ss-$$
